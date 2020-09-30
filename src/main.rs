@@ -270,21 +270,21 @@ fn main() {
     let mut now = SystemTime::now();
     let basis = app.generate_basis();
     if basis.len() < app.vlen {
-        //println!(
-        //    "Warning: Could not find enough distinct byte sequences (found: {}; requested: {})",
-        //    basis.len(),
-        //    app.vlen
-        //);
-        //println!("Warning: Remaining will be padded with zero!");
+        println!(
+            "Warning: Could not find enough distinct byte sequences (found: {}; requested: {})",
+            basis.len(),
+            app.vlen
+        );
+        println!("Warning: Remaining will be padded with zero!");
     }
-    //println!("Time (generate_basis): {}", now.elapsed().unwrap().as_millis());
+    println!("Time (generate_basis): {}", now.elapsed().unwrap().as_millis());
     now = SystemTime::now();
     
     let file_vecs = app.build_file_vectors(basis);
-    //println!("Time (build_file_vectors): {}", now.elapsed().unwrap().as_millis());
+    println!("Time (build_file_vectors): {}", now.elapsed().unwrap().as_millis());
     now = SystemTime::now();
     let matrix = generate_similarity_matrix_string(file_vecs);
-    //println!("Time (generate_similarity_matrix): {}", now.elapsed().unwrap().as_millis());
+    println!("Time (generate_similarity_matrix): {}", now.elapsed().unwrap().as_millis());
     
     //println!("{}", matrix);
 }
