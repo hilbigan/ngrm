@@ -213,13 +213,12 @@ fn generate_similarity_matrix_string(vecs: Vec<FileVec>) -> String {
 }
 
 fn cosine_similarity(fv0: &FileVec, fv1: &FileVec) -> f32 {
-    let elem_sum: f32 = (0..fv0.vec.len())
-        .collect::<Vec<usize>>()
-        .iter()
-        .map(|i| (fv0.vec[*i] * fv1.vec[*i]) as f32)
-        .sum();
+    let mut sum = 0;
+    for i in 0..fv0.vec.len() {
+        sum += fv0.vec[i] * fv1.vec[i];
+    }
     
-    elem_sum / (fv0.euclidean_len * fv1.euclidean_len)
+    sum as f32 / (fv0.euclidean_len * fv1.euclidean_len)
 }
 
 struct RollingHash {
@@ -290,3 +289,8 @@ fn main() {
     
     //println!("{}", matrix);
 }
+
+/*
+    let long_vec = vec![0usize; 100_000];
+    let file_vecs = (0..300).into_iter().map(|i| { FileVec { vec: long_vec.clone(), euclidean_len: 1.0 } }).collect();
+ */
