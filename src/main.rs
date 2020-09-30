@@ -6,7 +6,7 @@ use radix_trie::Trie;
 use radix_trie::TrieCommon;
 use rand::Rng;
 use rayon::prelude::*;
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashMap, HashSet};
 use std::fs;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -145,6 +145,8 @@ impl App {
         //println!("Hashes: {:?}", hashed_seqs);
         let minimum = hashed_seqs[0];
         let maximum = *hashed_seqs.last().unwrap();
+        let mut hashset = HashSet::with_capacity(self.vlen);
+        hashed_seqs.iter().for_each(|sequence| { hashset.insert(sequence); });
 
         let mut file_vecs = self.files.par_iter()
             .map(|file| {
@@ -154,7 +156,7 @@ impl App {
                 if bytes.len() >= self.n {
                     for byte in bytes {
                         let hash = roll.feed(byte);
-                        if !roll.valid() || hash < minimum || hash > maximum {
+                        if !roll.valid() || hash < minimum || hash > maximum || !hashset.contains(&hash) {
                             continue;
                         } else if let Ok(index) = hashed_seqs.binary_search(&hash) {
                             vec[index] += 1;
