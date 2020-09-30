@@ -143,6 +143,8 @@ impl App {
         hashed_seqs.sort();
 
         //println!("Hashes: {:?}", hashed_seqs);
+        let minimum = hashed_seqs[0];
+        let maximum = *hashed_seqs.last().unwrap();
 
         let mut file_vecs = self.files.par_iter()
             .map(|file| {
@@ -152,7 +154,7 @@ impl App {
                 if bytes.len() >= self.n {
                     for byte in bytes {
                         let hash = roll.feed(byte);
-                        if !roll.valid() {
+                        if !roll.valid() || hash < minimum || hash > maximum {
                             continue;
                         } else if let Ok(index) = hashed_seqs.binary_search(&hash) {
                             vec[index] += 1;
