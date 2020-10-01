@@ -1,5 +1,5 @@
 [package]
-name = "byte-ngram"
+name = "approx-byte-ngram"
 version = "0.1.0"
 authors = ["hilbigan <darkolan2@gmail.com>"]
 edition = "2018"
@@ -16,3 +16,13 @@ parking_lot = "0.11.0"
 
 [profile.release]
 debug = true
+
+[lib]
+name = "abng"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "my_benchmark"
+harness = false
