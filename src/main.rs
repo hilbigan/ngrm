@@ -18,7 +18,7 @@ struct CLIArgs {
 
 fn main() {
     let opt: CLIArgs = CLIArgs::from_args();
-    let app = App::new(opt.n, opt.m.unwrap_or(abng::DEFAULT_VLEN), opt.files);
+    let mut app = App::new(opt.n, opt.m.unwrap_or(abng::DEFAULT_VLEN), opt.files.iter().map(|p| p.into()).collect(), true);
 
     let mut now = SystemTime::now();
     let basis = app.generate_basis();
@@ -35,7 +35,7 @@ fn main() {
         now.elapsed().unwrap().as_millis()
     );
     now = SystemTime::now();
-    let _matrix = generate_similarity_matrix_string(file_vecs);
+    let matrix = generate_similarity_matrix_string(file_vecs);
     println!(
         "Time (generate_similarity_matrix): {}",
         now.elapsed().unwrap().as_millis()
