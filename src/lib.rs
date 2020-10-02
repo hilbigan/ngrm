@@ -3,7 +3,7 @@ use parking_lot::Mutex;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
 use rayon::prelude::*;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque, HashMap};
 use std::fmt::Write;
 use std::fs;
 use std::fs::File;
@@ -16,8 +16,10 @@ use std::ops::Range;
 pub const DEFAULT_VLEN: usize = 5;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
 
-pub fn euclidean_len(vec: &Vec<usize>) -> f32 {
-    vec.iter().map(|x| (x * x) as f32).sum::<f32>().sqrt()
+pub type NVector = sprs::CsVec<f32>;
+
+pub fn euclidean_len(vec: &NVector) -> f32 {
+    vec.l2_norm()
 }
 
 pub struct DataSource {
@@ -109,7 +111,7 @@ impl From<Vec<u8>> for DataSource {
 
 #[derive(Clone)]
 pub struct DataVec {
-    pub vec: Vec<usize>,
+    pub vec: NVector,
     pub euclidean_len: f32,
 }
 
@@ -245,7 +247,7 @@ impl App {
             .data_vec
             .par_iter()
             .map(|file: &DataSource| {
-                let mut vec = vec![0usize; self.vlen];
+                let mut map = HashMap::<usize, usize>::with_capacity(self.vlen);
                 let bytes = file.read_all();
                 let mut roll = RollingHash::new(self.n);
                 if bytes.len() >= self.n {
@@ -258,12 +260,17 @@ impl App {
                         {
                             continue;
                         } else if let Ok(index) = hashed_seqs.binary_search(&hash) {
-                            vec[index] += 1;
+                            if let Some(value) = map.get(&index) {
+                                map.insert(index, value + 1);
+                            } else {
+                                map.insert(index, 1);
+                            }
                         }
                     }
                 }
 
                 //println!("FVec: {:?}", vec);
+                let mut vec = NVector::new(self.vlen, map.keys().into_iter().cloned().collect(), map.values().map(|v| *v as f32).into_iter().collect());
                 let len = euclidean_len(&vec);
                 DataVec {
                     vec,
@@ -277,12 +284,7 @@ impl App {
 }
 
 pub fn cosine_similarity(fv0: &DataVec, fv1: &DataVec) -> f32 {
-    let mut sum = 0;
-    for i in 0..fv0.vec.len() {
-        sum += fv0.vec[i] * fv1.vec[i];
-    }
-
-    sum as f32 / (fv0.euclidean_len * fv1.euclidean_len)
+    fv0.vec.dot(&fv1.vec) / (fv0.euclidean_len * fv1.euclidean_len)
 }
 
 #[allow(clippy::needless_range_loop)]
@@ -291,28 +293,6 @@ pub fn generate_similarity_matrix_string(vecs: Vec<DataVec>) -> String {
     let matrix = Mutex::new(vec![vec![0.0; n]; n]);
     let vecs = Arc::new(vecs);
     let mut indices: Vec<(usize, usize)> = Vec::with_capacity(n * n);
-
-    /*
-    (0..n).into_par_iter().for_each(|i| {
-        let row_vec = &vecs[i];
-        let mut sums = vec![0usize; n];
-        for k in 0..row_vec.vec.len() {
-            for j in i..n {
-                sums[j] += row_vec.vec[k] * vecs[j].vec[k];
-            }
-        }
-        let mut m = matrix.lock();
-        for j in i..n {
-            let sim = if i == j {
-                1.0
-            } else {
-                sums[j] as f32 / (row_vec.euclidean_len * vecs[j].euclidean_len)
-            };
-            m[i][j] = sim;
-            m[j][i] = sim;
-        }
-    });
-    */
     
     for i in 0..n {
         for j in i..n {
@@ -387,13 +367,5 @@ impl RollingHash {
 
     pub fn valid(&self) -> bool {
         self.read >= self.len
-    }
-}
-
-pub fn fibonacci(n: u64) -> u64 {
-    match n {
-        0 => 1,
-        1 => 1,
-        n => fibonacci(n - 1) + fibonacci(n - 2),
     }
 }
