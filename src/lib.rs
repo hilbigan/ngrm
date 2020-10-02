@@ -13,7 +13,7 @@ use rand::prelude::*;
 use either::Either;
 use std::ops::Range;
 
-pub const DEFAULT_VLEN: usize = 5;
+pub const DEFAULT_VLEN: usize = 100_000;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
 
 pub type NVector = sprs::CsVec<f32>;
@@ -219,9 +219,10 @@ impl App {
 
         if basis.len() < self.vlen && self.debug {
             println!(
-                "Warning: Could not find enough distinct byte sequences (found: {}; requested: {})",
+                "Warning: Could not find enough distinct byte sequences (found: {}; requested: {}; {:.2}%)",
                 basis.len(),
-                self.vlen
+                self.vlen,
+                basis.len() as f32 / self.vlen as f32 * 100.0
             );
             println!("Warning: Remaining will be padded with zero!");
         }
