@@ -16,6 +16,10 @@ use std::ops::Range;
 pub const DEFAULT_VLEN: usize = 5;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
 
+pub fn euclidean_len(vec: &Vec<usize>) -> f32 {
+    vec.iter().map(|x| (x * x) as f32).sum::<f32>().sqrt()
+}
+
 pub struct DataSource {
     source: Either<PathBuf, Vec<u8>>,
     len: usize,
@@ -63,7 +67,6 @@ impl DataSource {
         if self.is_file() {
             fs::read(self.source.as_ref().expect_left("file source")).expect("read")
         } else {
-            println!("reading vec");
             self.source.as_ref().expect_right("vec source").clone()
         }
     }
@@ -261,7 +264,7 @@ impl App {
                 }
 
                 //println!("FVec: {:?}", vec);
-                let len = vec.iter().map(|x| (x * x) as f32).sum::<f32>().sqrt();
+                let len = euclidean_len(&vec);
                 DataVec {
                     vec,
                     euclidean_len: len,
