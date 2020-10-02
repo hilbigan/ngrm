@@ -12,6 +12,7 @@ use std::sync::Arc;
 use rand::prelude::*;
 use either::Either;
 use std::ops::Range;
+use num_traits::ToPrimitive;
 
 pub const DEFAULT_VLEN: usize = 100_000;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
@@ -21,6 +22,20 @@ pub type BasisVector = Vec<u8>;
 
 pub fn euclidean_len(vec: &SparseVector) -> f32 {
     vec.l2_norm()
+}
+
+#[inline]
+pub fn vec_2_sparse_vec<T>(vec: Vec<T>, len: usize) -> SparseVector
+where T: ToPrimitive + PartialEq
+{
+    let mut sparse_vec = SparseVector::empty(len);
+    for (i, v) in vec.iter().enumerate() {
+        if (*v).to_isize().unwrap() == 0 {
+            continue;
+        }
+        sparse_vec.append(i, (*v).to_f32().unwrap());
+    }
+    sparse_vec
 }
 
 pub struct DataSource {
@@ -267,13 +282,7 @@ impl App {
                     }
                 }
                 
-                let mut sparse_vec = SparseVector::empty(self.vlen);
-                for (i, v) in vec.iter().enumerate() {
-                    if *v == 0 {
-                        continue;
-                    }
-                    sparse_vec.append(i, *v as f32);
-                }
+                let mut sparse_vec = vec_2_sparse_vec(vec, self.vlen);
                 let len = euclidean_len(&sparse_vec);
                 DataVec {
                     vec: sparse_vec,
