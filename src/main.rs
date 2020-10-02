@@ -65,8 +65,3 @@ fn main() {
         print!("{}", matrix);
     }
 }
-
-/*
-   let long_vec = vec![0usize; 100_000];
-   let file_vecs = (0..300).into_iter().map(|i| { FileVec { vec: long_vec.clone(), euclidean_len: 1.0 } }).collect();
-*/

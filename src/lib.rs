@@ -16,9 +16,10 @@ use std::ops::Range;
 pub const DEFAULT_VLEN: usize = 100_000;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
 
-pub type NVector = sprs::CsVec<f32>;
+pub type SparseVector = sprs::CsVec<f32>;
+pub type BasisVector = Vec<u8>;
 
-pub fn euclidean_len(vec: &NVector) -> f32 {
+pub fn euclidean_len(vec: &SparseVector) -> f32 {
     vec.l2_norm()
 }
 
@@ -111,7 +112,7 @@ impl From<Vec<u8>> for DataSource {
 
 #[derive(Clone)]
 pub struct DataVec {
-    pub vec: NVector,
+    pub vec: SparseVector,
     pub euclidean_len: f32,
 }
 
@@ -156,7 +157,7 @@ impl App {
         }
     }
 
-    pub fn generate_basis(&mut self) -> Vec<Vec<u8>> {
+    pub fn generate_basis(&mut self) -> Vec<BasisVector> {
         // Generate vlen random indices
         let mut indices = (0..self.vlen)
             .into_iter()
@@ -230,7 +231,7 @@ impl App {
         return basis_vec;
     }
 
-    pub fn build_file_vectors(&self, basis: Vec<Vec<u8>>) -> Vec<DataVec> {
+    pub fn build_file_vectors(&self, basis: Vec<BasisVector>) -> Vec<DataVec> {
         let mut hashed_seqs = basis
             .iter()
             .map(|sequence| RollingHash::new(self.n).feed_slice(sequence))
@@ -248,7 +249,7 @@ impl App {
             .data_vec
             .par_iter()
             .map(|file: &DataSource| {
-                let mut map = HashMap::<usize, usize>::with_capacity(self.vlen);
+                let mut vec = vec![0; self.vlen];
                 let bytes = file.read_all();
                 let mut roll = RollingHash::new(self.n);
                 if bytes.len() >= self.n {
@@ -261,20 +262,21 @@ impl App {
                         {
                             continue;
                         } else if let Ok(index) = hashed_seqs.binary_search(&hash) {
-                            if let Some(value) = map.get(&index) {
-                                map.insert(index, value + 1);
-                            } else {
-                                map.insert(index, 1);
-                            }
+                            vec[index] += 1;
                         }
                     }
                 }
-
-                //println!("FVec: {:?}", vec);
-                let mut vec = NVector::new(self.vlen, map.keys().into_iter().cloned().collect(), map.values().map(|v| *v as f32).into_iter().collect());
-                let len = euclidean_len(&vec);
+                
+                let mut sparse_vec = SparseVector::empty(self.vlen);
+                for (i, v) in vec.iter().enumerate() {
+                    if *v == 0 {
+                        continue;
+                    }
+                    sparse_vec.append(i, *v as f32);
+                }
+                let len = euclidean_len(&sparse_vec);
                 DataVec {
-                    vec,
+                    vec: sparse_vec,
                     euclidean_len: len,
                 }
             })
