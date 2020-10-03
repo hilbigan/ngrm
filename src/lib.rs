@@ -171,7 +171,7 @@ impl App {
         }
     }
 
-    pub fn generate_basis(&mut self) -> Vec<BasisVector> {
+    pub fn generate_basis(&mut self) -> Trie<BasisVector, ()> {
         // Generate vlen random indices
         let mut indices = (0..self.vlen)
             .into_iter()
@@ -185,6 +185,7 @@ impl App {
                     }
                     data_index += 1;
                 }
+                // FIXME low >= high if filesize < n
                 let data_size = self.data_sizes[data_index];
                 let byte_index = rng.gen_range(0, data_size - self.n);
 
@@ -227,11 +228,6 @@ impl App {
 
         current_data.close();
 
-        let mut basis_vec = Vec::with_capacity(self.vlen);
-        basis.iter().for_each(|(k, _)| {
-            basis_vec.push(k.clone());
-        });
-
         if basis.len() < self.vlen && self.debug {
             println!(
                 "Warning: Could not find enough distinct byte sequences (found: {}; requested: {}; {:.2}%)",
@@ -242,13 +238,13 @@ impl App {
             println!("Warning: Remaining will be padded with zero!");
         }
 
-        return basis_vec;
+        return basis;
     }
 
-    pub fn build_file_vectors(&self, basis: Vec<BasisVector>) -> Vec<DataVec> {
+    pub fn build_file_vectors(&self, basis: Trie<BasisVector, ()>) -> Vec<DataVec> {
         let mut hashed_seqs = basis
             .iter()
-            .map(|sequence| RollingHash::new(self.n).feed_slice(sequence))
+            .map(|(sequence, _)| RollingHash::new(self.n).feed_slice(sequence))
             .collect::<Vec<u64>>();
         hashed_seqs.sort();
 
