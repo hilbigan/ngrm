@@ -4,7 +4,7 @@ use num_traits::ToPrimitive;
 use parking_lot::Mutex;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
-use rand::prelude::*;
+use oorandom::*;
 use rayon::prelude::*;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Write;
@@ -173,22 +173,33 @@ impl App {
 
     pub fn generate_basis(&mut self) -> Trie<BasisVector, ()> {
         // Generate vlen random indices
+        let mut rng = Rand64::new(1334u128);
         let mut indices = (0..self.vlen)
             .into_iter()
             .map(|_| {
-                let mut rng = thread_rng();
-                let random = rng.gen_range(0, self.data_sizes_sums.last().unwrap());
                 let mut data_index = 0;
-                loop {
-                    if self.data_sizes_sums[data_index] > random {
-                        break;
+                let mut byte_index = 0;
+                loop { // FIXME this may loop infinitely if no file > n exists
+                    let random = rng.rand_range(0 .. *self.data_sizes_sums.last().unwrap() as u64) as usize;
+                    data_index = 0;
+                    loop {
+                        if self.data_sizes_sums[data_index] > random {
+                            break;
+                        }
+                        data_index += 1;
                     }
-                    data_index += 1;
+                    let data_size = self.data_sizes[data_index];
+                    if data_size < self.n {
+                        continue;
+                    } else if data_size == self.n {
+                        byte_index = 0;
+                    } else {
+                        byte_index = rng.rand_range(0 .. (data_size - self.n) as u64);
+                    }
+                    
+                    break;
                 }
-                // FIXME low >= high if filesize < n
-                let data_size = self.data_sizes[data_index];
-                let byte_index = rng.gen_range(0, data_size - self.n);
-
+                
                 (data_index, byte_index as usize)
             })
             .collect::<Vec<(usize, usize)>>();
