@@ -305,8 +305,8 @@ pub fn generate_similarity_matrix_string(vecs: Vec<DataVec>) -> String {
     let vecs = Arc::new(vecs);
     let mut indices: Vec<(usize, usize)> = Vec::with_capacity(n * n);
 
-    for i in 0..n {
-        for j in i..n {
+    for j in 0..n {
+        for i in j..n {
             indices.push((i, j));
         }
     }
