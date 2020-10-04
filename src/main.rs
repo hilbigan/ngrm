@@ -2,6 +2,7 @@ use abng::{generate_similarity_matrix_string, App};
 use std::path::PathBuf;
 use std::time::SystemTime;
 use structopt::*;
+use std::fs;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "abng")]
@@ -17,11 +18,13 @@ struct CLIArgs {
     #[structopt(short, long = "vector-length")]
     m: Option<usize>,
 
-    /// Debug Level.
-    /// -v: Debug messages.
-    /// -vv: Debug messages only.
-    #[structopt(short, long, parse(from_occurrences))]
-    verbose: usize,
+    /// Enable verbose output.
+    #[structopt(short, long)]
+    verbose: bool,
+    
+    /// Output file for similarity matrix
+    #[structopt(short, long, parse(from_os_str))]
+    output: PathBuf,
 
     /// Input files.
     #[structopt(name = "FILES", parse(from_os_str))]
@@ -34,13 +37,14 @@ fn main() {
         opt.n,
         opt.m.unwrap_or(abng::DEFAULT_VLEN),
         opt.files.iter().map(|p| p.into()).collect(),
-        opt.verbose > 0,
+        opt.verbose,
     );
 
+    let total = SystemTime::now();
     let mut now = SystemTime::now();
     let basis = app.generate_basis();
 
-    if opt.verbose > 0 {
+    if opt.verbose {
         println!(
             "Time (generate_basis): {}",
             now.elapsed().unwrap().as_millis()
@@ -50,7 +54,7 @@ fn main() {
 
     let file_vecs = app.build_file_vectors(basis);
 
-    if opt.verbose > 0 {
+    if opt.verbose {
         println!(
             "Time (build_file_vectors): {}",
             now.elapsed().unwrap().as_millis()
@@ -59,14 +63,19 @@ fn main() {
     now = SystemTime::now();
     let matrix = generate_similarity_matrix_string(file_vecs);
 
-    if opt.verbose > 0 {
+    if opt.verbose {
         println!(
             "Time (generate_similarity_matrix): {}",
             now.elapsed().unwrap().as_millis()
         );
     }
 
-    if opt.verbose < 2 {
-        print!("{}", matrix);
+    fs::write(opt.output, matrix);
+    
+    if opt.verbose {
+        println!(
+            "Time (total): {}",
+            total.elapsed().unwrap().as_millis()
+        );
     }
 }
