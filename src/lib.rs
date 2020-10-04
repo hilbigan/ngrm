@@ -6,7 +6,7 @@ use radix_trie::Trie;
 use radix_trie::TrieCommon;
 use oorandom::*;
 use rayon::prelude::*;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque, HashMap};
 use std::fmt::Write;
 use std::fs;
 use std::fs::File;
@@ -218,12 +218,6 @@ impl App {
                 current_data = &mut self.data_vec[data_index];
                 current_data.open();
             }
-            if self.data_sizes[current_data_index] < self.n {
-                if self.debug {
-                    println!("Warning: Tried to sample file that was smaller that n = {}! (actual file size: {})", self.n, self.data_sizes[current_data_index]);
-                }
-                continue;
-            }
 
             // Try to add this sequence or one of the following ones until out of retries
             let mut index = byte_index;
@@ -261,9 +255,9 @@ impl App {
 
         let minimum = hashed_seqs[0];
         let maximum = *hashed_seqs.last().unwrap();
-        let mut hashset = HashSet::with_capacity(self.vlen);
-        hashed_seqs.iter().for_each(|sequence| {
-            hashset.insert(sequence);
+        let mut indexmap = HashMap::with_capacity(self.vlen);
+        hashed_seqs.iter().enumerate().for_each(|(index, sequence)| {
+            indexmap.insert(sequence, index);
         });
 
         let file_vecs = self
@@ -279,11 +273,10 @@ impl App {
                         if !roll.valid()
                             || hash < minimum
                             || hash > maximum
-                            || !hashset.contains(&hash)
                         {
                             continue;
-                        } else if let Ok(index) = hashed_seqs.binary_search(&hash) {
-                            vec[index] += 1;
+                        } else if let Some(index) = indexmap.get(&hash) {
+                            vec[*index] += 1; //thread '<unnamed>' panicked at 'index out of bounds: the len is 10000000 but the index is 32294021', src/lib.rs:344:29
                         }
                     }
                 }
