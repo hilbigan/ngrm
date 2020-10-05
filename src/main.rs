@@ -18,13 +18,17 @@ struct CLIArgs {
     #[structopt(short, long = "vector-length")]
     m: Option<usize>,
 
-    /// Enable verbose output.
+    /// Silence output.
     #[structopt(short, long)]
-    verbose: bool,
+    silent: bool,
     
     /// Output file for similarity matrix
     #[structopt(short, long, parse(from_os_str))]
     output: PathBuf,
+    
+    /// Optional output file with a mapping of file -> index in matrix
+    #[structopt(short = "M", long, parse(from_os_str))]
+    mapping: Option<PathBuf>,
 
     /// Input files.
     #[structopt(name = "FILES", parse(from_os_str))]
@@ -33,18 +37,19 @@ struct CLIArgs {
 
 fn main() {
     let opt: CLIArgs = CLIArgs::from_args();
+    let verbose = !opt.silent;
     let mut app = App::new(
         opt.n,
         opt.m.unwrap_or(abng::DEFAULT_VLEN),
         opt.files.iter().map(|p| p.into()).collect(),
-        opt.verbose,
+        verbose,
     );
 
     let total = SystemTime::now();
     let mut now = SystemTime::now();
     let basis = app.generate_basis();
 
-    if opt.verbose {
+    if verbose {
         println!(
             "Time (generate_basis): {}",
             now.elapsed().unwrap().as_millis()
@@ -54,7 +59,7 @@ fn main() {
 
     let file_vecs = app.build_file_vectors(basis);
 
-    if opt.verbose {
+    if verbose {
         println!(
             "Time (build_file_vectors): {}",
             now.elapsed().unwrap().as_millis()
@@ -63,19 +68,33 @@ fn main() {
     now = SystemTime::now();
     let matrix = generate_similarity_matrix_string(file_vecs);
 
-    if opt.verbose {
+    if verbose {
         println!(
             "Time (generate_similarity_matrix): {}",
             now.elapsed().unwrap().as_millis()
         );
     }
 
-    fs::write(opt.output, matrix);
+    fs::write(opt.output.clone(), matrix);
     
-    if opt.verbose {
+    if opt.mapping.is_some() {
+        fs::write(opt.mapping.unwrap(), app.mapping_string());
+        if verbose {
+            println!(
+                "Wrote output to file: {}",
+                opt.output.to_str().unwrap()
+            );
+        }
+    }
+    
+    if verbose {
         println!(
             "Time (total): {}",
             total.elapsed().unwrap().as_millis()
+        );
+        println!(
+            "Wrote output to file: {}",
+            opt.output.to_str().unwrap()
         );
     }
 }

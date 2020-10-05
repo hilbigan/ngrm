@@ -90,6 +90,14 @@ impl DataSource {
             self.source.as_ref().expect_right("vec source").clone()
         }
     }
+    
+    fn description(&self) -> String {
+        if self.is_file() {
+            self.source.as_ref().expect_left("file source").to_str().unwrap().to_string()
+        } else {
+            format!("Vec DataSource len = {}", self.source.as_ref().expect_right("vec source").len())
+        }
+    }
 }
 
 impl Clone for DataSource {
@@ -169,6 +177,14 @@ impl App {
             data_sizes_sums,
             debug,
         }
+    }
+    
+    pub fn mapping_string(&self) -> String {
+        let mut map = String::new();
+        for (index, data) in self.data_vec.iter().enumerate() {
+            writeln!(&mut map, "{} {}", index, data.description());
+        }
+        map
     }
 
     pub fn generate_basis(&mut self) -> Trie<BasisVector, ()> {
