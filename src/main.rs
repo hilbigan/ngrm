@@ -2,10 +2,11 @@ use abng::{generate_similarity_matrix_string, App};
 use std::path::PathBuf;
 use std::time::SystemTime;
 use structopt::*;
-use std::fs;
+use std::{fs, io};
+use std::io::BufRead;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "abng")]
+#[structopt(name = "Approximate Byte n-gram Analysis Tool", author = "Aaron Hilbig")]
 struct CLIArgs {
     /// The n in n-gram.
     #[structopt(short)]
@@ -21,6 +22,10 @@ struct CLIArgs {
     /// Silence output.
     #[structopt(short, long)]
     silent: bool,
+    
+    /// Read input file paths from stdin instead of the arguments
+    #[structopt(long)]
+    stdin: bool,
     
     /// Output file for similarity matrix
     #[structopt(short, long, parse(from_os_str))]
@@ -38,10 +43,20 @@ struct CLIArgs {
 fn main() {
     let opt: CLIArgs = CLIArgs::from_args();
     let verbose = !opt.silent;
+    let files = if opt.stdin {
+        io::stdin().lock().lines().map(|line| PathBuf::from(line.unwrap())).collect()
+    } else {
+        opt.files
+    };
+    if files.is_empty() {
+        eprintln!("Nothing to do.");
+        return;
+    }
+    
     let mut app = App::new(
         opt.n,
         opt.m.unwrap_or(abng::DEFAULT_VLEN),
-        opt.files.iter().map(|p| p.into()).collect(),
+        files.iter().map(|p| p.into()).collect(),
         verbose,
     );
 
@@ -75,26 +90,26 @@ fn main() {
         );
     }
 
-    fs::write(opt.output.clone(), matrix);
+    fs::write(&opt.output, matrix);
     
     if opt.mapping.is_some() {
-        fs::write(opt.mapping.unwrap(), app.mapping_string());
+        fs::write(opt.mapping.as_ref().unwrap(), app.mapping_string());
         if verbose {
             println!(
-                "Wrote output to file: {}",
-                opt.output.to_str().unwrap()
+                "Wrote mapping to file: {}",
+                opt.mapping.unwrap().to_str().unwrap()
             );
         }
     }
     
     if verbose {
         println!(
-            "Time (total): {}",
-            total.elapsed().unwrap().as_millis()
-        );
-        println!(
             "Wrote output to file: {}",
             opt.output.to_str().unwrap()
+        );
+        println!(
+            "Time (total): {}",
+            total.elapsed().unwrap().as_millis()
         );
     }
 }
