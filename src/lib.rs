@@ -135,7 +135,7 @@ impl From<Vec<u8>> for DataSource {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DataVec {
     pub vec: SparseVector,
     pub euclidean_len: f32,
@@ -398,5 +398,122 @@ impl RollingHash {
 
     pub fn valid(&self) -> bool {
         self.read >= self.len
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{App, DataSource, BasisVector, DataVec, vec_2_sparse_vec, generate_similarity_matrix_string};
+    use radix_trie::Trie;
+    use radix_trie::TrieCommon;
+    use num_traits::Pow;
+    use num_traits::real::Real;
+    
+    fn contains(basis: &Trie<BasisVector, ()>, elem: &BasisVector) -> bool {
+        basis.get(elem) == Some(&())
+    }
+    
+    #[test]
+    fn test_basis_1(){
+        let mut app = App::new(4, 2, vec![
+            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+            DataSource::from(vec![0x5, 0x6, 0x7, 0x8])
+        ], true);
+        
+        let basis = app.generate_basis();
+        assert!(contains(&basis, &vec![0x1, 0x2, 0x3, 0x4]) || contains(&basis, &vec![0x5, 0x6, 0x7, 0x8]));
+    }
+    
+    #[test]
+    fn test_basis_2(){
+        let mut app = App::new(2, 2, vec![
+            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+            DataSource::from(vec![0x5, 0x6, 0x7, 0x8])
+        ], true);
+        
+        let basis = app.generate_basis();
+        assert!(basis.len() == 2);
+    }
+    
+    #[test]
+    fn test_basis_3(){
+        let mut vec = vec![0x1; 1000];
+        vec[499] = 0x2;
+        vec[999] = 0x2;
+        let mut app = App::new(2, 2, vec![
+            DataSource::from(vec)
+        ], true);
+        
+        let basis = app.generate_basis();
+        assert!(basis.len() == 2);
+    }
+    
+    #[test]
+    fn test_file_vector_1(){
+        let mut app = App::new(2, 2, vec![
+            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+            DataSource::from(vec![0x5, 0x3, 0x4])
+        ], true);
+        
+        let mut basis = Trie::new();
+        basis.insert(vec![0x1, 0x2], ());
+        basis.insert(vec![0x3, 0x4], ());
+        
+        let vecs = app.build_file_vectors(basis);
+        
+        assert_eq!(vecs.len(), 2);
+        assert_eq!(vecs[0], DataVec { vec: vec_2_sparse_vec(vec![1, 1], 2), euclidean_len: 2.0f32.sqrt() } );
+        assert_eq!(vecs[1], DataVec { vec: vec_2_sparse_vec(vec![0, 1], 2), euclidean_len: 1.0 } );
+    }
+    
+    #[test]
+    fn test_file_vector_2(){
+        let mut vec = vec![0x1; 1000];
+        vec[599] = 0x2;
+        let mut app = App::new(2, 2, vec![
+            DataSource::from(vec)
+        ], true);
+        
+        let mut basis = Trie::new();
+        basis.insert(vec![0x1, 0x1], ());
+        basis.insert(vec![0x1, 0x2], ());
+        
+        let vecs = app.build_file_vectors(basis);
+    
+        assert_eq!(vecs.len(), 1);
+        assert_eq!(vecs[0], DataVec { vec: vec_2_sparse_vec(vec![997, 1], 2), euclidean_len: ((997.0f32.pow(2) + 1.0f32) as f32).sqrt() } );
+    }
+    
+    #[test]
+    fn test_matrix_1(){
+        let mut app = App::new(2, 2, vec![
+            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+            DataSource::from(vec![0x5, 0x3, 0x4])
+        ], true);
+        
+        let mut basis = Trie::new();
+        basis.insert(vec![0x1, 0x2], ());
+        basis.insert(vec![0x3, 0x4], ());
+        let vecs = app.build_file_vectors(basis);
+        
+        let mut str = generate_similarity_matrix_string(vecs);
+        assert_eq!(str, format!("{:4.4},{:4.4}\n{:4.4},{:4.4}\n", 1.0, 1.0 / 2.0f32.sqrt(),  1.0 / 2.0f32.sqrt(), 1.0));
+    }
+    
+    #[test]
+    fn test_matrix_2(){
+        let mut vec = vec![0x1; 1000];
+        vec[599] = 0x2;
+        let mut app = App::new(2, 2, vec![
+            DataSource::from(vec)
+        ], true);
+        
+        let mut basis = Trie::new();
+        basis.insert(vec![0x1, 0x1], ());
+        basis.insert(vec![0x1, 0x2], ());
+        let vecs = app.build_file_vectors(basis);
+    
+        let mut str = generate_similarity_matrix_string(vecs);
+        assert_eq!(str, format!("{:4.4}\n", 1.0));
     }
 }
