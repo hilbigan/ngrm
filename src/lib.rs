@@ -1,11 +1,13 @@
 use either::Either;
+use itertools::{Itertools, MinMaxResult};
 use memmap::Mmap;
 use num_traits::ToPrimitive;
 use parking_lot::Mutex;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
+use rand::Rng;
 use rayon::prelude::*;
-use std::collections::{HashSet, VecDeque, HashMap};
+use std::collections::VecDeque;
 use std::fmt::Write;
 use std::fs;
 use std::fs::File;
@@ -13,8 +15,6 @@ use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::Arc;
 use t1ha::T1haHashMap;
-use rand::Rng;
-use itertools::{Itertools, MinMaxResult};
 
 pub const DEFAULT_VLEN: usize = 100_000;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
@@ -93,12 +93,20 @@ impl DataSource {
             self.source.as_ref().expect_right("vec source").clone()
         }
     }
-    
+
     fn description(&self) -> String {
         if self.is_file() {
-            self.source.as_ref().expect_left("file source").to_str().unwrap().to_string()
+            self.source
+                .as_ref()
+                .expect_left("file source")
+                .to_str()
+                .unwrap()
+                .to_string()
         } else {
-            format!("Vec DataSource len = {}", self.source.as_ref().expect_right("vec source").len())
+            format!(
+                "Vec DataSource len = {}",
+                self.source.as_ref().expect_right("vec source").len()
+            )
         }
     }
 }
@@ -140,7 +148,7 @@ impl From<Vec<u8>> for DataSource {
 
 #[derive(Default)]
 pub struct StatisticsCollector {
-    pub sequence_frequency: Vec<(Vec<u8>, usize)>
+    pub sequence_frequency: Vec<(Vec<u8>, usize)>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -158,7 +166,7 @@ pub struct App {
     data_sizes: Vec<usize>,
     data_sizes_sums: Vec<usize>,
     debug: bool,
-    ignore_trivial: bool
+    ignore_trivial: bool,
 }
 
 impl App {
@@ -185,14 +193,14 @@ impl App {
             data_sizes,
             data_sizes_sums,
             debug,
-            ignore_trivial: IGNORE_TRIVIAL
+            ignore_trivial: IGNORE_TRIVIAL,
         }
     }
-    
+
     pub fn mapping_string(&self) -> String {
         let mut map = String::new();
         for (index, data) in self.data_vec.iter().enumerate() {
-            writeln!(&mut map, "{} {}", index, data.description());
+            writeln!(&mut map, "{} {}", index, data.description()).unwrap();
         }
         map
     }
@@ -205,10 +213,12 @@ impl App {
             .into_par_iter()
             .map(|_| {
                 let mut rng = rand::thread_rng();
-                let mut data_index = 0;
-                let mut byte_index = 0;
-                loop { // FIXME this may loop infinitely if no file > n exists
-                    let random = rng.gen_range(0, *self.data_sizes_sums.last().unwrap() as u64) as usize;
+                let mut data_index;
+                let byte_index;
+                loop {
+                    // FIXME this may loop infinitely if no file > n exists
+                    let random =
+                        rng.gen_range(0, *self.data_sizes_sums.last().unwrap() as u64) as usize;
                     data_index = 0;
                     loop {
                         if self.data_sizes_sums[data_index] > random {
@@ -224,10 +234,10 @@ impl App {
                     } else {
                         byte_index = rng.gen_range(0, (data_size - self.n) as u64);
                     }
-                    
+
                     break;
                 }
-                
+
                 (data_index, byte_index as usize)
             })
             .collect::<Vec<(usize, usize)>>();
@@ -243,7 +253,7 @@ impl App {
             if basis.len() >= self.vlen {
                 break;
             }
-            
+
             if current_data_index != data_index {
                 current_data_index = data_index;
                 current_data.close();
@@ -282,11 +292,15 @@ impl App {
     /// goes through all files and counts the number of occurences
     /// of each sequence. This results in one sparse vector (`DataVec`) for
     /// each file.
-    pub fn build_file_vectors<'a>(&self, basis: Trie<BasisVector, ()>, statistics_collector: impl Into<Option<&'a mut StatisticsCollector>>) -> Vec<DataVec> {
+    pub fn build_file_vectors<'a>(
+        &self,
+        basis: Trie<BasisVector, ()>,
+        statistics_collector: impl Into<Option<&'a mut StatisticsCollector>>,
+    ) -> Vec<DataVec> {
         let optional_collector: Option<&mut StatisticsCollector> = Into::into(statistics_collector);
         let collect_statistics = optional_collector.is_some();
-        
-        let mut hashed_seqs: Vec<u64> = basis
+
+        let hashed_seqs: Vec<u64> = basis
             .iter()
             .map(|(sequence, _)| RollingHash::new(self.n).feed_slice(sequence))
             .collect();
@@ -298,11 +312,14 @@ impl App {
         } else {
             panic!("minmax");
         }
-        
+
         let mut indexmap = T1haHashMap::with_capacity_and_hasher(self.vlen, Default::default());
-        hashed_seqs.iter().enumerate().for_each(|(index, sequence)| {
-            indexmap.insert(sequence, index);
-        });
+        hashed_seqs
+            .iter()
+            .enumerate()
+            .for_each(|(index, sequence)| {
+                indexmap.insert(sequence, index);
+            });
 
         let file_vecs: Vec<DataVec> = self
             .data_vec
@@ -314,10 +331,7 @@ impl App {
                 if bytes.len() >= self.n {
                     for byte in bytes {
                         let hash = roll.feed(byte);
-                        if !roll.valid()
-                            || hash < minimum
-                            || hash > maximum
-                        {
+                        if !roll.valid() || hash < minimum || hash > maximum {
                             continue;
                         } else if let Some(index) = indexmap.get(&hash) {
                             vec[*index] += 1; //thread '<unnamed>' panicked at 'index out of bounds: the len is 10000000 but the index is 32294021', src/lib.rs:344:29
@@ -333,10 +347,22 @@ impl App {
                 }
             })
             .collect();
-        
+
         if collect_statistics {
-            let sparse_vec = file_vecs.iter().fold(vec_2_sparse_vec(vec![0.0; self.vlen], self.vlen), |mut acc, x| { acc + &x.vec });
-            let mut sequence_frequency: Vec<_> = basis.iter().enumerate().map(|(index, (sequence, _))| (sequence.clone(), *sparse_vec.get(index).unwrap_or(&0.0) as usize)).collect();
+            let sparse_vec = file_vecs.iter().fold(
+                vec_2_sparse_vec(vec![0.0; self.vlen], self.vlen),
+                |acc, x| acc + &x.vec,
+            );
+            let mut sequence_frequency: Vec<_> = basis
+                .iter()
+                .enumerate()
+                .map(|(index, (sequence, _))| {
+                    (
+                        sequence.clone(),
+                        *sparse_vec.get(index).unwrap_or(&0.0) as usize,
+                    )
+                })
+                .collect();
             sequence_frequency.sort_by_key(|s| s.1);
             sequence_frequency.reverse();
             optional_collector.unwrap().sequence_frequency = sequence_frequency;
@@ -438,148 +464,200 @@ impl RollingHash {
 }
 
 pub fn is_trivial(sequence: &[u8]) -> bool {
-    let start = if sequence.len() & 1 == 0 { 0 } else { sequence[0] };
-    let result = sequence.iter().fold(start, |acc, x| {
-        acc ^ x
-    });
+    let start = if sequence.len() & 1 == 0 {
+        0
+    } else {
+        sequence[0]
+    };
+    let result = sequence.iter().fold(start, |acc, x| acc ^ x);
     result == 0
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{App, DataSource, BasisVector, DataVec, vec_2_sparse_vec, generate_similarity_matrix_string, StatisticsCollector};
+    use crate::*;
+    use num_traits::Pow;
     use radix_trie::Trie;
     use radix_trie::TrieCommon;
-    use num_traits::Pow;
-    use num_traits::real::Real;
-    
+
     fn contains(basis: &Trie<BasisVector, ()>, elem: &BasisVector) -> bool {
         basis.get(elem) == Some(&())
     }
-    
+
     #[test]
-    fn test_basis_1(){
-        let mut app = App::new(4, 2, vec![
-            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
-            DataSource::from(vec![0x5, 0x6, 0x7, 0x8])
-        ], true);
-        
+    fn test_basis_1() {
+        let mut app = App::new(
+            4,
+            2,
+            vec![
+                DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+                DataSource::from(vec![0x5, 0x6, 0x7, 0x8]),
+            ],
+            true,
+        );
+
         let basis = app.generate_basis();
-        assert!(contains(&basis, &vec![0x1, 0x2, 0x3, 0x4]) || contains(&basis, &vec![0x5, 0x6, 0x7, 0x8]));
+        assert!(
+            contains(&basis, &vec![0x1, 0x2, 0x3, 0x4])
+                || contains(&basis, &vec![0x5, 0x6, 0x7, 0x8])
+        );
     }
-    
+
     #[test]
-    fn test_basis_2(){
-        let mut app = App::new(2, 2, vec![
-            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
-            DataSource::from(vec![0x5, 0x6, 0x7, 0x8])
-        ], true);
-        
+    fn test_basis_2() {
+        let mut app = App::new(
+            2,
+            2,
+            vec![
+                DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+                DataSource::from(vec![0x5, 0x6, 0x7, 0x8]),
+            ],
+            true,
+        );
+
         let basis = app.generate_basis();
         assert!(basis.len() == 2);
     }
-    
+
     #[test]
-    fn test_basis_3(){
+    fn test_basis_3() {
         let mut vec = vec![0x1; 1000];
         vec[499] = 0x2;
         vec[999] = 0x2;
-        let mut app = App::new(2, 2, vec![
-            DataSource::from(vec)
-        ], true);
-        
+        let mut app = App::new(2, 2, vec![DataSource::from(vec)], true);
+
         let basis = app.generate_basis();
         assert!(basis.len() == 2);
     }
-    
+
     #[test]
-    fn test_file_vector_1(){
-        let mut app = App::new(2, 2, vec![
-            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
-            DataSource::from(vec![0x5, 0x3, 0x4])
-        ], true);
-        
+    fn test_file_vector_1() {
+        let app = App::new(
+            2,
+            2,
+            vec![
+                DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+                DataSource::from(vec![0x5, 0x3, 0x4]),
+            ],
+            true,
+        );
+
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x2], ());
         basis.insert(vec![0x3, 0x4], ());
-        
+
         let vecs = app.build_file_vectors(basis, None);
-        
+
         assert_eq!(vecs.len(), 2);
-        assert_eq!(vecs[0], DataVec { vec: vec_2_sparse_vec(vec![1, 1], 2), euclidean_len: 2.0f32.sqrt() } );
-        assert_eq!(vecs[1], DataVec { vec: vec_2_sparse_vec(vec![0, 1], 2), euclidean_len: 1.0 } );
+        assert_eq!(
+            vecs[0],
+            DataVec {
+                vec: vec_2_sparse_vec(vec![1, 1], 2),
+                euclidean_len: 2.0f32.sqrt()
+            }
+        );
+        assert_eq!(
+            vecs[1],
+            DataVec {
+                vec: vec_2_sparse_vec(vec![0, 1], 2),
+                euclidean_len: 1.0
+            }
+        );
     }
-    
+
     #[test]
-    fn test_file_vector_2(){
+    fn test_file_vector_2() {
         let mut vec = vec![0x1; 1000];
         vec[599] = 0x2;
-        let mut app = App::new(2, 2, vec![
-            DataSource::from(vec)
-        ], true);
-        
+        let app = App::new(2, 2, vec![DataSource::from(vec)], true);
+
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x1], ());
         basis.insert(vec![0x1, 0x2], ());
-        
+
         let vecs = app.build_file_vectors(basis, None);
-    
+
         assert_eq!(vecs.len(), 1);
-        assert_eq!(vecs[0], DataVec { vec: vec_2_sparse_vec(vec![997, 1], 2), euclidean_len: ((997.0f32.pow(2) + 1.0f32) as f32).sqrt() } );
+        assert_eq!(
+            vecs[0],
+            DataVec {
+                vec: vec_2_sparse_vec(vec![997, 1], 2),
+                euclidean_len: ((997.0f32.pow(2) + 1.0f32) as f32).sqrt()
+            }
+        );
     }
-    
+
     #[test]
-    fn test_matrix_1(){
-        let mut app = App::new(2, 2, vec![
-            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
-            DataSource::from(vec![0x5, 0x3, 0x4])
-        ], true);
-        
+    fn test_matrix_1() {
+        let app = App::new(
+            2,
+            2,
+            vec![
+                DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+                DataSource::from(vec![0x5, 0x3, 0x4]),
+            ],
+            true,
+        );
+
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x2], ());
         basis.insert(vec![0x3, 0x4], ());
         let vecs = app.build_file_vectors(basis, None);
-        
-        let mut str = generate_similarity_matrix_string(vecs);
-        assert_eq!(str, format!("{:4.4},{:4.4}\n{:4.4},{:4.4}\n", 1.0, 1.0 / 2.0f32.sqrt(),  1.0 / 2.0f32.sqrt(), 1.0));
+
+        let str = generate_similarity_matrix_string(vecs);
+        assert_eq!(
+            str,
+            format!(
+                "{:4.4},{:4.4}\n{:4.4},{:4.4}\n",
+                1.0,
+                1.0 / 2.0f32.sqrt(),
+                1.0 / 2.0f32.sqrt(),
+                1.0
+            )
+        );
     }
-    
+
     #[test]
-    fn test_matrix_2(){
+    fn test_matrix_2() {
         let mut vec = vec![0x1; 1000];
         vec[599] = 0x2;
-        let mut app = App::new(2, 2, vec![
-            DataSource::from(vec)
-        ], true);
-        
+        let app = App::new(2, 2, vec![DataSource::from(vec)], true);
+
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x1], ());
         basis.insert(vec![0x1, 0x2], ());
         let vecs = app.build_file_vectors(basis, None);
-    
-        let mut str = generate_similarity_matrix_string(vecs);
+
+        let str = generate_similarity_matrix_string(vecs);
         assert_eq!(str, format!("{:4.4}\n", 1.0));
     }
-    
+
     #[test]
-    fn test_matrix_3(){
-        let mut app = App::new(2, 2, vec![
-            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),           // 1, 1, len = sqrt(2)
-            DataSource::from(vec![0x5, 0x3, 0x4]),                // 0, 1, len = 1
-            DataSource::from(vec![0x5, 0x1, 0x2]),                // 1, 0, len = 1
-            DataSource::from(vec![0x1, 0x2, 0x3, 0x4, 0x3, 0x4]), // 1, 2, len = sqrt(5)
-        ], true);
-    
+    fn test_matrix_3() {
+        let app = App::new(
+            2,
+            2,
+            vec![
+                DataSource::from(vec![0x1, 0x2, 0x3, 0x4]), // 1, 1, len = sqrt(2)
+                DataSource::from(vec![0x5, 0x3, 0x4]),      // 0, 1, len = 1
+                DataSource::from(vec![0x5, 0x1, 0x2]),      // 1, 0, len = 1
+                DataSource::from(vec![0x1, 0x2, 0x3, 0x4, 0x3, 0x4]), // 1, 2, len = sqrt(5)
+            ],
+            true,
+        );
+
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x2], ());
         basis.insert(vec![0x3, 0x4], ());
         let vecs = app.build_file_vectors(basis, None);
-    
+
         let sqrt2 = 2.0f32.sqrt();
         let sqrt5 = 5.0f32.sqrt();
         let sqrt10 = 10.0f32.sqrt();
-        let mut str = generate_similarity_matrix_string(vecs);
-        assert_eq!(str, format!("\
+        let str = generate_similarity_matrix_string(vecs);
+        assert_eq!(
+            str,
+            format!("\
             {:4.4},{:4.4},{:4.4},{:4.4}\n\
             {:4.4},{:4.4},{:4.4},{:4.4}\n\
             {:4.4},{:4.4},{:4.4},{:4.4}\n\
@@ -591,16 +669,21 @@ mod tests {
             3.0 / sqrt10, 2.0 / sqrt5, 1.0 / sqrt5, 1.0
         ));
     }
-    
+
     #[test]
-    fn test_statistics(){
-        let mut app = App::new(2, 2, vec![
-            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),           // 1, 1, len = sqrt(2)
-            DataSource::from(vec![0x5, 0x3, 0x4]),                // 0, 1, len = 1
-            DataSource::from(vec![0x5, 0x1, 0x2]),                // 1, 0, len = 1
-            DataSource::from(vec![0x1, 0x2, 0x3, 0x4, 0x3, 0x4]), // 1, 2, len = sqrt(5)
-        ], true);
-        
+    fn test_statistics() {
+        let app = App::new(
+            2,
+            2,
+            vec![
+                DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),
+                DataSource::from(vec![0x5, 0x3, 0x4]),
+                DataSource::from(vec![0x5, 0x1, 0x2]),
+                DataSource::from(vec![0x1, 0x2, 0x3, 0x4, 0x3, 0x4]),
+            ],
+            true,
+        );
+
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x2], ());
         basis.insert(vec![0x3, 0x4], ());

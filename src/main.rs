@@ -1,15 +1,17 @@
 mod lib;
 
+use ngrm::{generate_similarity_matrix_string, App, StatisticsCollector};
+use std::io::BufRead;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use structopt::*;
 use std::{fs, io};
-use std::io::BufRead;
-use ngrm::{App, generate_similarity_matrix_string, StatisticsCollector};
-
+use structopt::*;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "Approximate Byte n-gram Analysis Tool", author = "Aaron Hilbig")]
+#[structopt(
+    name = "Approximate Byte n-gram Analysis Tool",
+    author = "Aaron Hilbig"
+)]
 struct CLIArgs {
     /// The n in n-gram.
     #[structopt(short)]
@@ -25,15 +27,15 @@ struct CLIArgs {
     /// Silence output.
     #[structopt(short, long)]
     silent: bool,
-    
+
     /// Read input file paths from stdin instead of the arguments
     #[structopt(long)]
     stdin: bool,
-    
+
     /// Output file for similarity matrix
     #[structopt(short, long, parse(from_os_str))]
     output: PathBuf,
-    
+
     /// Optional output file with a mapping of file -> index in matrix
     #[structopt(short = "M", long, parse(from_os_str))]
     mapping: Option<PathBuf>,
@@ -41,17 +43,21 @@ struct CLIArgs {
     /// Input files.
     #[structopt(name = "FILES", parse(from_os_str))]
     files: Vec<PathBuf>,
-    
+
     /// Print top 25 most common sequences. This is disabled by default, as it slows the program down.
     #[structopt(long)]
-    stats: bool
+    stats: bool,
 }
 
 fn main() {
     let opt: CLIArgs = CLIArgs::from_args();
     let verbose = !opt.silent;
     let files = if opt.stdin {
-        io::stdin().lock().lines().map(|line| PathBuf::from(line.unwrap())).collect()
+        io::stdin()
+            .lock()
+            .lines()
+            .map(|line| PathBuf::from(line.unwrap()))
+            .collect()
     } else {
         opt.files
     };
@@ -59,7 +65,7 @@ fn main() {
         eprintln!("Nothing to do.");
         return;
     }
-    
+
     let mut app = App::new(
         opt.n,
         opt.m.unwrap_or(ngrm::DEFAULT_VLEN),
@@ -80,8 +86,15 @@ fn main() {
     now = SystemTime::now();
 
     let mut statistics_collector = StatisticsCollector::default();
-    let file_vecs = app.build_file_vectors(basis, if opt.stats { Some(&mut statistics_collector) } else { None });
-    
+    let file_vecs = app.build_file_vectors(
+        basis,
+        if opt.stats {
+            Some(&mut statistics_collector)
+        } else {
+            None
+        },
+    );
+
     if verbose {
         println!(
             "Time (build_file_vectors): {}",
@@ -99,7 +112,7 @@ fn main() {
     }
 
     fs::write(&opt.output, matrix);
-    
+
     if opt.mapping.is_some() {
         fs::write(opt.mapping.as_ref().unwrap(), app.mapping_string());
         if verbose {
@@ -109,22 +122,20 @@ fn main() {
             );
         }
     }
-    
+
     if verbose {
-        println!(
-            "Wrote output to file: {}",
-            opt.output.to_str().unwrap()
-        );
-        println!(
-            "Time (total): {}",
-            total.elapsed().unwrap().as_millis()
-        );
+        println!("Wrote output to file: {}", opt.output.to_str().unwrap());
+        println!("Time (total): {}", total.elapsed().unwrap().as_millis());
     }
-    
+
     if opt.stats {
         println!("Top 25 most common sequences:");
-        statistics_collector.sequence_frequency.iter().take(25).for_each(|(s, f)| {
-            println!("{:02x?} x {}", s, f);
-        });
+        statistics_collector
+            .sequence_frequency
+            .iter()
+            .take(25)
+            .for_each(|(s, f)| {
+                println!("{:02x?} x {}", s, f);
+            });
     }
 }

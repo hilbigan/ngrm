@@ -1,7 +1,5 @@
-use abng::*;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-
-use abng::euclidean_len;
+use ngrm::*;
 use rand::distributions::Standard;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
@@ -64,7 +62,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             );
             let basis = app.generate_basis();
 
-            b.iter(|| app.build_file_vectors(basis.clone()));
+            b.iter(|| app.build_file_vectors(basis.clone(), None));
         });
     }
     group.finish();
