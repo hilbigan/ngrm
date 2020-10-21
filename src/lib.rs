@@ -13,6 +13,8 @@ use std::fs::File;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::Arc;
+use t1ha::T1haHashMap;
+use rand::Rng;
 
 pub const DEFAULT_VLEN: usize = 100_000;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
@@ -187,16 +189,18 @@ impl App {
         map
     }
 
+    /// Selects m (== `vlen`) random byte sequences with length n from
+    /// all the provided files, and returns the resulting sequences in a trie.
     pub fn generate_basis(&mut self) -> Trie<BasisVector, ()> {
         // Generate vlen random indices
-        let mut rng = Rand64::new(1334u128);
         let mut indices = (0..self.vlen)
-            .into_iter()
+            .into_par_iter()
             .map(|_| {
+                let mut rng = rand::thread_rng();
                 let mut data_index = 0;
                 let mut byte_index = 0;
                 loop { // FIXME this may loop infinitely if no file > n exists
-                    let random = rng.rand_range(0 .. *self.data_sizes_sums.last().unwrap() as u64) as usize;
+                    let random = rng.gen_range(0, *self.data_sizes_sums.last().unwrap() as u64) as usize;
                     data_index = 0;
                     loop {
                         if self.data_sizes_sums[data_index] > random {
@@ -210,7 +214,7 @@ impl App {
                     } else if data_size == self.n {
                         byte_index = 0;
                     } else {
-                        byte_index = rng.rand_range(0 .. (data_size - self.n) as u64);
+                        byte_index = rng.gen_range(0, (data_size - self.n) as u64);
                     }
                     
                     break;
@@ -262,6 +266,10 @@ impl App {
         return basis;
     }
 
+    /// Given a set of sequences to count (the "basis"), this methods
+    /// goes through all files and counts the number of occurences
+    /// of each sequence. This results in one sparse vector (`DataVec`) for
+    /// each file.
     pub fn build_file_vectors(&self, basis: Trie<BasisVector, ()>) -> Vec<DataVec> {
         let mut hashed_seqs = basis
             .iter()
@@ -271,7 +279,7 @@ impl App {
 
         let minimum = hashed_seqs[0];
         let maximum = *hashed_seqs.last().unwrap();
-        let mut indexmap = HashMap::with_capacity(self.vlen);
+        let mut indexmap = T1haHashMap::with_capacity_and_hasher(self.vlen, Default::default());
         hashed_seqs.iter().enumerate().for_each(|(index, sequence)| {
             indexmap.insert(sequence, index);
         });
