@@ -1,6 +1,7 @@
 # Approximate Byte-based n-gram Analysis Tool
 
-Can be used to compare a bunch of files.
+Can be used to compare a bunch of files.  
+Makes use of mmap-ing, sparse vectors and all your CPUs to be decently fast.
 
 Usage:
 
@@ -43,3 +44,9 @@ $ python ward_cluster.py matrix.csv
 ...which produces this output:
 
 ![Output](figures/clusters.png)
+
+In this plot, each point (x, y) has a brightness value
+corresponding to how similar the files x and y are.
+E.g. all points on the diagonal (x,x) should have a value of 1 and
+are bright yellow, as each file is completely similar to itself.
+Each cluster corresponds to a set of files that are similar or identical.
