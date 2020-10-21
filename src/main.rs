@@ -1,9 +1,12 @@
-use abng::{generate_similarity_matrix_string, App};
+mod lib;
+
 use std::path::PathBuf;
 use std::time::SystemTime;
 use structopt::*;
 use std::{fs, io};
 use std::io::BufRead;
+use ngrm::{App, generate_similarity_matrix_string};
+
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Approximate Byte n-gram Analysis Tool", author = "Aaron Hilbig")]
@@ -55,7 +58,7 @@ fn main() {
     
     let mut app = App::new(
         opt.n,
-        opt.m.unwrap_or(abng::DEFAULT_VLEN),
+        opt.m.unwrap_or(ngrm::DEFAULT_VLEN),
         files.iter().map(|p| p.into()).collect(),
         verbose,
     );

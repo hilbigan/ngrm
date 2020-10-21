@@ -21,7 +21,7 @@ num-traits = "0.2.12"
 debug = true
 
 [lib]
-name = "abng"
+name = "ngrm"
 
 [dev-dependencies]
 criterion = "0.3"
