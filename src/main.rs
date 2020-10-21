@@ -31,6 +31,10 @@ struct CLIArgs {
     /// Read input file paths from stdin instead of the arguments.
     #[structopt(long)]
     stdin: bool,
+    
+    /// Print similarity matrix to stdout (Recommended only for small matrices).
+    #[structopt(long)]
+    stdout: bool,
 
     /// Output file for similarity matrix.
     #[structopt(short, long, parse(from_os_str))]
@@ -111,7 +115,14 @@ fn main() {
         );
     }
 
-    fs::write(&opt.output, matrix);
+    fs::write(&opt.output, &matrix);
+    
+    if opt.stdout {
+        println!(
+            "{}",
+            matrix
+        );
+    }
 
     if opt.mapping.is_some() {
         fs::write(opt.mapping.as_ref().unwrap(), app.mapping_string());
