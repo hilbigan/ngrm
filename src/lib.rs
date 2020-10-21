@@ -157,6 +157,7 @@ pub struct App {
     data_sizes: Vec<usize>,
     data_sizes_sums: Vec<usize>,
     debug: bool,
+    exclude_trivial: bool
 }
 
 impl App {
@@ -183,6 +184,7 @@ impl App {
             data_sizes,
             data_sizes_sums,
             debug,
+            exclude_trivial: true
         }
     }
     
@@ -198,7 +200,7 @@ impl App {
     /// all the provided files, and returns the resulting sequences in a trie.
     pub fn generate_basis(&mut self) -> Trie<BasisVector, ()> {
         // Generate vlen random indices
-        let mut indices = (0..self.vlen)
+        let mut indices = (0..(self.vlen as f32 * 1.1) as usize)
             .into_par_iter()
             .map(|_| {
                 let mut rng = rand::thread_rng();
@@ -237,6 +239,10 @@ impl App {
         current_data.open();
 
         for (data_index, byte_index) in indices {
+            if basis.len() >= self.vlen {
+                break;
+            }
+            
             if current_data_index != data_index {
                 current_data_index = data_index;
                 current_data.close();
@@ -258,7 +264,7 @@ impl App {
 
         current_data.close();
 
-        if basis.len() < self.vlen && self.debug {
+        if basis.len() != self.vlen && self.debug {
             println!(
                 "Warning: Could not find enough distinct byte sequences (found: {}; requested: {}; {:.2}%)",
                 basis.len(),
