@@ -516,4 +516,35 @@ mod tests {
         let mut str = generate_similarity_matrix_string(vecs);
         assert_eq!(str, format!("{:4.4}\n", 1.0));
     }
+    
+    #[test]
+    fn test_matrix_3(){
+        let mut app = App::new(2, 2, vec![
+            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),           // 1, 1, len = sqrt(2)
+            DataSource::from(vec![0x5, 0x3, 0x4]),                // 0, 1, len = 1
+            DataSource::from(vec![0x5, 0x1, 0x2]),                // 1, 0, len = 1
+            DataSource::from(vec![0x1, 0x2, 0x3, 0x4, 0x3, 0x4]), // 1, 2, len = sqrt(5)
+        ], true);
+    
+        let mut basis = Trie::new();
+        basis.insert(vec![0x1, 0x2], ());
+        basis.insert(vec![0x3, 0x4], ());
+        let vecs = app.build_file_vectors(basis);
+    
+        let sqrt2 = 2.0f32.sqrt();
+        let sqrt5 = 5.0f32.sqrt();
+        let sqrt10 = 10.0f32.sqrt();
+        let mut str = generate_similarity_matrix_string(vecs);
+        assert_eq!(str, format!("\
+            {:4.4},{:4.4},{:4.4},{:4.4}\n\
+            {:4.4},{:4.4},{:4.4},{:4.4}\n\
+            {:4.4},{:4.4},{:4.4},{:4.4}\n\
+            {:4.4},{:4.4},{:4.4},{:4.4}\n",
+
+            1.0,          1.0 / sqrt2, 1.0 / sqrt2, 3.0 / sqrt10,
+            1.0 / sqrt2,  1.0,         0.0,         2.0 / sqrt5,
+            1.0 / sqrt2,  0.0,         1.0,         1.0 / sqrt5,
+            3.0 / sqrt10, 2.0 / sqrt5, 1.0 / sqrt5, 1.0
+        ));
+    }
 }
