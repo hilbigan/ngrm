@@ -13,7 +13,7 @@ use structopt::*;
     author = "Aaron Hilbig"
 )]
 struct CLIArgs {
-    /// The n in n-gram.
+    /// The n in n-gram (Byte sequence length).
     #[structopt(short)]
     n: usize,
 
@@ -28,15 +28,15 @@ struct CLIArgs {
     #[structopt(short, long)]
     silent: bool,
 
-    /// Read input file paths from stdin instead of the arguments
+    /// Read input file paths from stdin instead of the arguments.
     #[structopt(long)]
     stdin: bool,
 
-    /// Output file for similarity matrix
+    /// Output file for similarity matrix.
     #[structopt(short, long, parse(from_os_str))]
     output: PathBuf,
 
-    /// Optional output file with a mapping of file -> index in matrix
+    /// Optional output file with a mapping of (file |-> index in matrix).
     #[structopt(short = "M", long, parse(from_os_str))]
     mapping: Option<PathBuf>,
 
@@ -44,7 +44,7 @@ struct CLIArgs {
     #[structopt(name = "FILES", parse(from_os_str))]
     files: Vec<PathBuf>,
 
-    /// Print top 25 most common sequences. This is disabled by default, as it slows the program down.
+    /// Print top 25 most common sequences.
     #[structopt(long)]
     stats: bool,
 }
