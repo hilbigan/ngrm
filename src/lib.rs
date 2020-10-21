@@ -4,7 +4,6 @@ use num_traits::ToPrimitive;
 use parking_lot::Mutex;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
-use oorandom::*;
 use rayon::prelude::*;
 use std::collections::{HashSet, VecDeque, HashMap};
 use std::fmt::Write;
@@ -15,6 +14,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use t1ha::T1haHashMap;
 use rand::Rng;
+use itertools::{Itertools, MinMaxResult};
 
 pub const DEFAULT_VLEN: usize = 100_000;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
@@ -271,14 +271,20 @@ impl App {
     /// of each sequence. This results in one sparse vector (`DataVec`) for
     /// each file.
     pub fn build_file_vectors(&self, basis: Trie<BasisVector, ()>) -> Vec<DataVec> {
-        let mut hashed_seqs = basis
+        let mut hashed_seqs: Vec<u64> = basis
             .iter()
             .map(|(sequence, _)| RollingHash::new(self.n).feed_slice(sequence))
-            .collect::<Vec<u64>>();
-        hashed_seqs.sort();
+            .collect();
 
-        let minimum = hashed_seqs[0];
-        let maximum = *hashed_seqs.last().unwrap();
+        let minimum;
+        let maximum;
+        if let MinMaxResult::MinMax(&min, &max) = hashed_seqs.iter().minmax() {
+            minimum = min;
+            maximum = max;
+        } else {
+            panic!("minmax");
+        }
+        
         let mut indexmap = T1haHashMap::with_capacity_and_hasher(self.vlen, Default::default());
         hashed_seqs.iter().enumerate().for_each(|(index, sequence)| {
             indexmap.insert(sequence, index);
