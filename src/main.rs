@@ -124,7 +124,7 @@ fn main() {
     if opt.stats {
         println!("Top 25 most common sequences:");
         statistics_collector.sequence_frequency.iter().take(25).for_each(|(s, f)| {
-            println!("{:2x?} x {}", s, f);
+            println!("{:02x?} x {}", s, f);
         });
     }
 }

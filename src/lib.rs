@@ -18,6 +18,7 @@ use itertools::{Itertools, MinMaxResult};
 
 pub const DEFAULT_VLEN: usize = 100_000;
 pub const MAX_RETRY_ON_COLLISION: usize = 500;
+pub const IGNORE_TRIVIAL: bool = false;
 
 pub type SparseVector = sprs::CsVec<f32>;
 pub type BasisVector = Vec<u8>;
@@ -157,7 +158,7 @@ pub struct App {
     data_sizes: Vec<usize>,
     data_sizes_sums: Vec<usize>,
     debug: bool,
-    exclude_trivial: bool
+    ignore_trivial: bool
 }
 
 impl App {
@@ -184,7 +185,7 @@ impl App {
             data_sizes,
             data_sizes_sums,
             debug,
-            exclude_trivial: true
+            ignore_trivial: IGNORE_TRIVIAL
         }
     }
     
@@ -253,7 +254,7 @@ impl App {
             // Try to add this sequence or one of the following ones until out of retries
             let mut index = byte_index;
             let mut bytes = current_data.get(index..(index + self.n));
-            while basis.insert(bytes, ()) != None
+            while ((self.ignore_trivial && is_trivial(&bytes)) || basis.insert(bytes, ()) != None)
                 && index + 1 + self.n <= self.data_sizes[data_index] as usize
                 && index + 1 - byte_index < MAX_RETRY_ON_COLLISION
             {
@@ -434,6 +435,14 @@ impl RollingHash {
     pub fn valid(&self) -> bool {
         self.read >= self.len
     }
+}
+
+pub fn is_trivial(sequence: &[u8]) -> bool {
+    let start = if sequence.len() & 1 == 0 { 0 } else { sequence[0] };
+    let result = sequence.iter().fold(start, |acc, x| {
+        acc ^ x
+    });
+    result == 0
 }
 
 #[cfg(test)]
