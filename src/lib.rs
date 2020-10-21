@@ -137,6 +137,11 @@ impl From<Vec<u8>> for DataSource {
     }
 }
 
+#[derive(Default)]
+pub struct StatisticsCollector {
+    pub sequence_frequency: Vec<(Vec<u8>, usize)>
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct DataVec {
     pub vec: SparseVector,
@@ -270,12 +275,14 @@ impl App {
     /// goes through all files and counts the number of occurences
     /// of each sequence. This results in one sparse vector (`DataVec`) for
     /// each file.
-    pub fn build_file_vectors(&self, basis: Trie<BasisVector, ()>) -> Vec<DataVec> {
+    pub fn build_file_vectors<'a>(&self, basis: Trie<BasisVector, ()>, statistics_collector: impl Into<Option<&'a mut StatisticsCollector>>) -> Vec<DataVec> {
+        let optional_collector: Option<&mut StatisticsCollector> = Into::into(statistics_collector);
+        let collect_statistics = optional_collector.is_some();
+        
         let mut hashed_seqs: Vec<u64> = basis
             .iter()
             .map(|(sequence, _)| RollingHash::new(self.n).feed_slice(sequence))
             .collect();
-
         let minimum;
         let maximum;
         if let MinMaxResult::MinMax(&min, &max) = hashed_seqs.iter().minmax() {
@@ -290,7 +297,7 @@ impl App {
             indexmap.insert(sequence, index);
         });
 
-        let file_vecs = self
+        let file_vecs: Vec<DataVec> = self
             .data_vec
             .par_iter()
             .map(|file: &DataSource| {
@@ -319,6 +326,14 @@ impl App {
                 }
             })
             .collect();
+        
+        if collect_statistics {
+            let sparse_vec = file_vecs.iter().fold(vec_2_sparse_vec(vec![0.0; self.vlen], self.vlen), |mut acc, x| { acc + &x.vec });
+            let mut sequence_frequency: Vec<_> = basis.iter().enumerate().map(|(index, (sequence, _))| (sequence.clone(), *sparse_vec.get(index).unwrap_or(&0.0) as usize)).collect();
+            sequence_frequency.sort_by_key(|s| s.1);
+            sequence_frequency.reverse();
+            optional_collector.unwrap().sequence_frequency = sequence_frequency;
+        }
 
         return file_vecs;
     }
@@ -417,7 +432,7 @@ impl RollingHash {
 
 #[cfg(test)]
 mod tests {
-    use crate::{App, DataSource, BasisVector, DataVec, vec_2_sparse_vec, generate_similarity_matrix_string};
+    use crate::{App, DataSource, BasisVector, DataVec, vec_2_sparse_vec, generate_similarity_matrix_string, StatisticsCollector};
     use radix_trie::Trie;
     use radix_trie::TrieCommon;
     use num_traits::Pow;
@@ -473,7 +488,7 @@ mod tests {
         basis.insert(vec![0x1, 0x2], ());
         basis.insert(vec![0x3, 0x4], ());
         
-        let vecs = app.build_file_vectors(basis);
+        let vecs = app.build_file_vectors(basis, None);
         
         assert_eq!(vecs.len(), 2);
         assert_eq!(vecs[0], DataVec { vec: vec_2_sparse_vec(vec![1, 1], 2), euclidean_len: 2.0f32.sqrt() } );
@@ -492,7 +507,7 @@ mod tests {
         basis.insert(vec![0x1, 0x1], ());
         basis.insert(vec![0x1, 0x2], ());
         
-        let vecs = app.build_file_vectors(basis);
+        let vecs = app.build_file_vectors(basis, None);
     
         assert_eq!(vecs.len(), 1);
         assert_eq!(vecs[0], DataVec { vec: vec_2_sparse_vec(vec![997, 1], 2), euclidean_len: ((997.0f32.pow(2) + 1.0f32) as f32).sqrt() } );
@@ -508,7 +523,7 @@ mod tests {
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x2], ());
         basis.insert(vec![0x3, 0x4], ());
-        let vecs = app.build_file_vectors(basis);
+        let vecs = app.build_file_vectors(basis, None);
         
         let mut str = generate_similarity_matrix_string(vecs);
         assert_eq!(str, format!("{:4.4},{:4.4}\n{:4.4},{:4.4}\n", 1.0, 1.0 / 2.0f32.sqrt(),  1.0 / 2.0f32.sqrt(), 1.0));
@@ -525,7 +540,7 @@ mod tests {
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x1], ());
         basis.insert(vec![0x1, 0x2], ());
-        let vecs = app.build_file_vectors(basis);
+        let vecs = app.build_file_vectors(basis, None);
     
         let mut str = generate_similarity_matrix_string(vecs);
         assert_eq!(str, format!("{:4.4}\n", 1.0));
@@ -543,7 +558,7 @@ mod tests {
         let mut basis = Trie::new();
         basis.insert(vec![0x1, 0x2], ());
         basis.insert(vec![0x3, 0x4], ());
-        let vecs = app.build_file_vectors(basis);
+        let vecs = app.build_file_vectors(basis, None);
     
         let sqrt2 = 2.0f32.sqrt();
         let sqrt5 = 5.0f32.sqrt();
@@ -560,5 +575,24 @@ mod tests {
             1.0 / sqrt2,  0.0,         1.0,         1.0 / sqrt5,
             3.0 / sqrt10, 2.0 / sqrt5, 1.0 / sqrt5, 1.0
         ));
+    }
+    
+    #[test]
+    fn test_statistics(){
+        let mut app = App::new(2, 2, vec![
+            DataSource::from(vec![0x1, 0x2, 0x3, 0x4]),           // 1, 1, len = sqrt(2)
+            DataSource::from(vec![0x5, 0x3, 0x4]),                // 0, 1, len = 1
+            DataSource::from(vec![0x5, 0x1, 0x2]),                // 1, 0, len = 1
+            DataSource::from(vec![0x1, 0x2, 0x3, 0x4, 0x3, 0x4]), // 1, 2, len = sqrt(5)
+        ], true);
+        
+        let mut basis = Trie::new();
+        basis.insert(vec![0x1, 0x2], ());
+        basis.insert(vec![0x3, 0x4], ());
+        let mut stats = StatisticsCollector::default();
+        app.build_file_vectors(basis, &mut stats);
+        assert!(stats.sequence_frequency.contains(&(vec![0x1, 0x2], 3)));
+        assert!(stats.sequence_frequency.contains(&(vec![0x3, 0x4], 4)));
+        assert_eq!(stats.sequence_frequency.len(), 2);
     }
 }

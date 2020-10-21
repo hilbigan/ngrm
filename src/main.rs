@@ -5,7 +5,7 @@ use std::time::SystemTime;
 use structopt::*;
 use std::{fs, io};
 use std::io::BufRead;
-use ngrm::{App, generate_similarity_matrix_string};
+use ngrm::{App, generate_similarity_matrix_string, StatisticsCollector};
 
 
 #[derive(StructOpt, Debug)]
@@ -41,6 +41,10 @@ struct CLIArgs {
     /// Input files.
     #[structopt(name = "FILES", parse(from_os_str))]
     files: Vec<PathBuf>,
+    
+    /// Print top 25 most common sequences. This is disabled by default, as it slows the program down.
+    #[structopt(long)]
+    stats: bool
 }
 
 fn main() {
@@ -75,8 +79,9 @@ fn main() {
     }
     now = SystemTime::now();
 
-    let file_vecs = app.build_file_vectors(basis);
-
+    let mut statistics_collector = StatisticsCollector::default();
+    let file_vecs = app.build_file_vectors(basis, if opt.stats { Some(&mut statistics_collector) } else { None });
+    
     if verbose {
         println!(
             "Time (build_file_vectors): {}",
@@ -114,5 +119,12 @@ fn main() {
             "Time (total): {}",
             total.elapsed().unwrap().as_millis()
         );
+    }
+    
+    if opt.stats {
+        println!("Top 25 most common sequences:");
+        statistics_collector.sequence_frequency.iter().take(25).for_each(|(s, f)| {
+            println!("{:2x?} x {}", s, f);
+        });
     }
 }
