@@ -6,6 +6,33 @@ Makes use of mmap-ing, sparse vectors and all your CPUs to be decently fast.
 
 ## Example
 
+### Results to stdout
+
+Comparing some files:
+
+```
+$ ls
+manhattan.jpg  shuffleparrot.gif  tokio.png  ultrafastparrot.gif
+$ ngrm -n 8 -o /dev/null --stdout *
+n = 8
+m = 100000
+Time (generate_basis): 39 ms
+Time (build_file_vectors): 120 ms
+Time (generate_similarity_matrix): 4 ms
+       manhat shuffl tokio. ultraf 
+manhat 1.0000,0.0000,0.0011,0.0000
+shuffl 0.0000,1.0000,0.0000,0.9695
+tokio. 0.0011,0.0000,1.0000,0.0000
+ultraf 0.0000,0.9695,0.0000,1.0000
+
+Wrote output to file: /dev/null
+Time (total): 165 ms
+```
+
+As can bee seen from the output similarity matrix, `ultrafastparrot.gif` and `shuffleparrot.gif` must be similar files.
+
+### Results using clustering algorithm
+
 The following command runs the analysis on all files in ~/data/,
 which have a combined size of 3.8 GB. A similarity matrix
 is generated and written to matrix.csv.
