@@ -1,4 +1,4 @@
-# Approximate Byte-based n-gram Analysis Tool
+# Approximate Byte-based n-gram Analysis
 
 Can be used to compare a bunch of files.  
 Makes use of mmap-ing, sparse vectors and all your CPUs to be decently fast.
