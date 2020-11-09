@@ -6,7 +6,7 @@ Makes use of mmap-ing, sparse vectors and all your CPUs to be decently fast.
 
 ## Example
 
-### Results to stdout
+### Simple / stdout
 
 Comparing some files:
 
@@ -31,7 +31,7 @@ Time (total): 165 ms
 
 As can bee seen from the output similarity matrix, `ultrafastparrot.gif` and `shuffleparrot.gif` must be similar files.
 
-### Results using clustering algorithm
+### Using clustering algorithm
 
 The following command runs the analysis on all files in ~/data/,
 which have a combined size of 3.8 GB. A similarity matrix
