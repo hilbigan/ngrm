@@ -4,7 +4,7 @@ Can be used to compare a bunch of files.
 Makes use of mmap-ing, sparse vectors and all your CPUs to be decently fast.
 
 
-## Example
+## Examples
 
 ### Simple / stdout
 
