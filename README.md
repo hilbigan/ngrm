@@ -20,6 +20,7 @@ m = 100000
 Time (generate_basis): 39 ms
 Time (build_file_vectors): 120 ms
 Time (generate_similarity_matrix): 4 ms
+
        manhat shuffl tokio. ultraf 
 manhat 1.0000,0.0000,0.0011,0.0000
 shuffl 0.0000,1.0000,0.0000,0.9695
