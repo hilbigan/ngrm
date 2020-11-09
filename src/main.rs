@@ -69,6 +69,11 @@ fn main() {
         eprintln!("Nothing to do.");
         return;
     }
+    let files_clone = if opt.stdout {
+        Some(files.clone())
+    } else {
+        None
+    };
 
     let mut app = App::new(
         opt.n,
@@ -83,7 +88,7 @@ fn main() {
 
     if verbose {
         println!(
-            "Time (generate_basis): {}",
+            "Time (generate_basis): {} ms",
             now.elapsed().unwrap().as_millis()
         );
     }
@@ -101,7 +106,7 @@ fn main() {
 
     if verbose {
         println!(
-            "Time (build_file_vectors): {}",
+            "Time (build_file_vectors): {} ms",
             now.elapsed().unwrap().as_millis()
         );
     }
@@ -110,7 +115,7 @@ fn main() {
 
     if verbose {
         println!(
-            "Time (generate_similarity_matrix): {}",
+            "Time (generate_similarity_matrix): {} ms",
             now.elapsed().unwrap().as_millis()
         );
     }
@@ -118,10 +123,25 @@ fn main() {
     fs::write(&opt.output, &matrix);
     
     if opt.stdout {
-        println!(
-            "{}",
-            matrix
-        );
+        let files = files_clone.unwrap();
+        let file_name = |file: &PathBuf| {
+            file.file_name().unwrap().to_str().unwrap().to_string()
+        };
+        print!("\n       ");
+        for f in &files {
+            print!("{:6.6} ", file_name(f))
+        }
+        println!();
+        matrix.split("\n")
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, str)| {
+                if i < files.len() {
+                    println!("{:6.6} {}", file_name(&files[i]), str);
+                } else {
+                    println!("{}", str);
+                }
+            });
     }
 
     if opt.mapping.is_some() {
@@ -136,7 +156,7 @@ fn main() {
 
     if verbose {
         println!("Wrote output to file: {}", opt.output.to_str().unwrap());
-        println!("Time (total): {}", total.elapsed().unwrap().as_millis());
+        println!("Time (total): {} ms", total.elapsed().unwrap().as_millis());
     }
 
     if opt.stats {
