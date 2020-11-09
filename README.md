@@ -28,6 +28,13 @@ E.g. all points on the diagonal (x,x) should have a value of 1 and
 are bright yellow, as each file is completely similar to itself.
 Each cluster corresponds to a set of files that are similar or identical.
 
+## How It Works
+
+This approximates an [n-gram analysis](https://en.wikipedia.org/wiki/N-gram) by first selecting *M* (`--vector-length`) random
+byte sequences of length *N* (`-n`) from all the supplied files. These are then used
+to map all files into a vector space with dimension *M*, where their similarity is computed
+using the [cosine similarity metric](https://en.wikipedia.org/wiki/Cosine_similarity).
+
 ## Usage
 
 ```
