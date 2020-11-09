@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 use std::{fs, io};
 use structopt::*;
+use std::process::exit;
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -81,6 +82,13 @@ fn main() {
         files.iter().map(|p| p.into()).collect(),
         verbose,
     );
+    
+    if !app.check_input_ok() {
+        eprintln!(
+            "The provided files are too small! No file is larger than n!",
+        );
+        exit(1)
+    }
 
     let total = SystemTime::now();
     let mut now = SystemTime::now();

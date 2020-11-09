@@ -204,6 +204,10 @@ impl App {
         }
         map
     }
+    
+    pub fn check_input_ok(&self) -> bool {
+        self.data_sizes.iter().any(|s| *s >= self.n)
+    }
 
     /// Selects m (== `vlen`) random byte sequences with length n from
     /// all the provided files, and returns the resulting sequences in a trie.
@@ -216,7 +220,6 @@ impl App {
                 let mut data_index;
                 let byte_index;
                 loop {
-                    // FIXME this may loop infinitely if no file > n exists
                     let random =
                         rng.gen_range(0, *self.data_sizes_sums.last().unwrap() as u64) as usize;
                     data_index = 0;
@@ -334,7 +337,7 @@ impl App {
                         if !roll.valid() || hash < minimum || hash > maximum {
                             continue;
                         } else if let Some(index) = indexmap.get(&hash) {
-                            vec[*index] += 1; //thread '<unnamed>' panicked at 'index out of bounds: the len is 10000000 but the index is 32294021', src/lib.rs:344:29
+                            vec[*index] += 1;
                         }
                     }
                 }
