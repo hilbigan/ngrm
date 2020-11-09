@@ -30,7 +30,7 @@ Wrote output to file: /dev/null
 Time (total): 165 ms
 ```
 
-As can bee seen from the output similarity matrix, `ultrafastparrot.gif` and `shuffleparrot.gif` must be similar files.
+As can be seen from the output similarity matrix, `ultrafastparrot.gif` and `shuffleparrot.gif` must be similar files.
 
 ### Using clustering algorithm
 
