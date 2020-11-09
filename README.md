@@ -13,6 +13,7 @@ Comparing some files:
 ```
 $ ls
 manhattan.jpg  shuffleparrot.gif  tokio.png  ultrafastparrot.gif
+
 $ ngrm -n 8 -o /dev/null --stdout *
 n = 8
 m = 100000
